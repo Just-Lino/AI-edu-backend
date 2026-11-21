@@ -1,5 +1,6 @@
 """API модуля: данные слушателя, ИИ, литература, файлы, экспорт, тьютор, администратор, безопасность."""
 import json
+from contextlib import closing
 from unittest import mock
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -234,7 +235,8 @@ class FileTests(TestCase):
         self.assertEqual(r.json()['text'], 'Тема: активное обучение')
         self.assertEqual(len(self.c.get(API + 'files/').json()), 4)
         f = UploadedFile.objects.get(original_name='Силлабус.docx')
-        self.assertEqual(self.c.get(f'{API}files/{f.pk}/download/').status_code, 200)
+        with closing(self.c.get(f'{API}files/{f.pk}/download/')) as download:
+            self.assertEqual(download.status_code, 200)
         other = client_for(make_user('stranger'))
         self.assertEqual(other.get(f'{API}files/{f.pk}/').status_code, 404)
         self.assertEqual(other.get(f'{API}files/{f.pk}/download/').status_code, 404)
@@ -242,7 +244,8 @@ class FileTests(TestCase):
         self.assertEqual(client_for(tutor).get(f'{API}files/{f.pk}/download/').status_code, 404)   # не в группе тьютора
         from ..models import GroupMembership, StudyGroup
         GroupMembership.objects.create(group=StudyGroup.objects.create(tutor=tutor, name='Группа'), user=self.user)
-        self.assertEqual(client_for(tutor).get(f'{API}files/{f.pk}/download/').status_code, 200)
+        with closing(client_for(tutor).get(f'{API}files/{f.pk}/download/')) as download:
+            self.assertEqual(download.status_code, 200)
         self.assertEqual(self.c.delete(f'{API}files/{f.pk}/').status_code, 204)
 
     def test_duplicate_returns_existing(self):
